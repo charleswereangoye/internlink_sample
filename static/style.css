@@ -1,0 +1,76 @@
+body{
+font-family:'DM Sans',sans-serif;
+background:#0d0f14;
+color:white;
+margin:0;
+}
+
+nav{
+display:flex;
+justify-content:space-between;
+padding:20px 40px;
+border-bottom:1px solid #272c3d;
+}
+
+.brand{
+font-weight:bold;
+color:#5dfc8d;
+cursor:pointer;
+}
+
+.nav-links a{
+margin-left:20px;
+cursor:pointer;
+color:#8b91a8;
+}
+
+.page{
+display:none;
+padding:40px;
+}
+
+.page.active{
+display:block;
+}
+
+.hero{
+text-align:center;
+padding:100px 20px;
+}
+
+.btn{
+background:#5dfc8d;
+border:none;
+padding:12px 20px;
+border-radius:8px;
+cursor:pointer;
+}
+
+.auth-box{
+max-width:400px;
+margin:auto;
+display:flex;
+flex-direction:column;
+gap:12px;
+}
+
+.auth-box input{
+padding:10px;
+border-radius:6px;
+border:none;
+}
+
+.toast{
+position:fixed;
+bottom:20px;
+right:20px;
+background:#1d2130;
+padding:12px 20px;
+border-radius:8px;
+opacity:0;
+transition:0.3s;
+}
+
+.toast.show{
+opacity:1;
+}

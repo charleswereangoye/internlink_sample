@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>InternLink – Kigali</title>
+
+<link rel="stylesheet" href="/static/style.css">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+
+</head>
+
+<body>
+
+<nav>
+
+<div class="brand" onclick="showPage('landing')">
+InternLink
+</div>
+
+<div class="nav-links">
+<a onclick="showPage('landing')">Home</a>
+<a onclick="showPage('listing')">Internships</a>
+<a onclick="showPage('login')">Login</a>
+<a class="btn-nav" onclick="showPage('register')">Sign Up</a>
+</div>
+
+</nav>
+
+<div id="toast" class="toast"></div>
+
+<!-- LANDING PAGE -->
+
+<div class="page active" id="page-landing">
+
+<section class="hero">
+
+<h1>
+Find the Right <em>Internship</em>
+</h1>
+
+<p>
+InternLink connects students with companies across Kigali.
+</p>
+
+<button class="btn" onclick="showPage('register')">
+Register Now
+</button>
+
+</section>
+
+</div>
+
+
+<!-- INTERNSHIP LISTING PAGE -->
+
+<div class="page" id="page-listing">
+
+<h2>Available Internships</h2>
+
+<p>Browse internships posted by companies.</p>
+
+<div class="internship-list">
+
+<div class="internship-card">
+<h3>Software Developer Intern</h3>
+<p>Company: Kigali Tech</p>
+<p>Location: Kigali</p>
+<button class="btn">Apply</button>
+</div>
+
+<div class="internship-card">
+<h3>Data Analyst Intern</h3>
+<p>Company: Rwanda Data Lab</p>
+<p>Location: Kigali</p>
+<button class="btn">Apply</button>
+</div>
+
+</div>
+
+</div>
+
+
+<!-- LOGIN PAGE -->
+
+<div class="page" id="page-login">
+
+<div class="auth-box">
+
+<h2>Login</h2>
+
+<input id="login-email" type="email" placeholder="Email">
+
+<input id="login-password" type="password" placeholder="Password">
+
+<button class="btn" onclick="login()">
+Login
+</button>
+
+<p>
+Don't have an account?
+<a onclick="showPage('register')">Register</a>
+</p>
+
+</div>
+
+</div>
+
+
+<!-- REGISTER PAGE -->
+
+<div class="page" id="page-register">
+
+<div class="auth-box">
+
+<h2>Create Account</h2>
+
+<input id="register-first" type="text" placeholder="First Name">
+
+<input id="register-last" type="text" placeholder="Last Name">
+
+<input id="register-email" type="email" placeholder="Email">
+
+<input id="register-password" type="password" placeholder="Password">
+
+<button class="btn" onclick="register()">
+Create Account
+</button>
+
+<p>
+Already registered?
+<a onclick="showPage('login')">Login</a>
+</p>
+
+</div>
+
+</div>
+
+
+<!-- STUDENT DASHBOARD -->
+
+<div class="page" id="page-studentDash">
+
+<h2>Student Dashboard</h2>
+
+<p>Welcome to InternLink.</p>
+
+<button class="btn" onclick="logout()">Logout</button>
+
+</div>
+
+<script src="/static/script.js"></script>
+
+</body>
+</html>

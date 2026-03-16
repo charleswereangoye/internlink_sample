@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+  <div>
+    <h2>Available Internships</h2>
+    <p>Browse live internships from our local SMEs and global partners.</p>
+  </div>
+  
+  <button id="match-me-btn" class="btn" style="display: none; margin-bottom: 20px;" onclick="matchInternships()">
+    Match Me!
+  </button>
+</div>
+
+<div id="api-jobs-container" class="internship-list">
+  <p>Loading live jobs...</p>
+</div>
+{% endblock %}

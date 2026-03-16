@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Student Dashboard</h2>
+<p>Welcome back! Update your skill profile and track your applications below.</p>
+
+<div class="auth-box" style="max-width: 800px; margin: 20px 0; background: #1d2130; padding: 20px; border-radius: 8px;">
+  <h3 style="margin-top: 0; color: #5dfc8d;">My Skill Profile</h3>
+  
+  <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+    <div style="flex: 1;">
+      <label style="font-size: 12px; color: #8b91a8;">University</label>
+      <input id="prof-uni" type="text" placeholder="e.g., ALU" style="width: 100%; box-sizing: border-box;">
+    </div>
+    <div style="flex: 1;">
+      <label style="font-size: 12px; color: #8b91a8;">Major</label>
+      <input id="prof-major" type="text" placeholder="e.g., Software Engineering" style="width: 100%; box-sizing: border-box;">
+    </div>
+    <div style="flex: 1;">
+      <label style="font-size: 12px; color: #8b91a8;">Grad Year</label>
+      <input id="prof-year" type="number" placeholder="e.g., 2026" style="width: 100%; box-sizing: border-box;">
+    </div>
+  </div>
+  
+  <label style="font-size: 12px; color: #8b91a8;">Technical & Soft Skills</label>
+  <input id="prof-skills" type="text" placeholder="Comma separated (e.g., Python, React, UI/UX Design)" style="width: 100%; box-sizing: border-box;">
+  
+  <button class="btn" style="margin-top: 15px;" onclick="updateProfile()">Save Profile</button>
+</div>
+
+<h3 style="margin-top: 40px; border-top: 1px solid #272c3d; padding-top: 20px;">My Applications</h3>
+<div id="student-applications-container" class="internship-list">
+  </div>
+{% endblock %}

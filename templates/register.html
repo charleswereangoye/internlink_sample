@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="auth-box">
+  <h2>Create Account</h2>
+
+  <select id="register-role" onchange="toggleCompanyField()" style="padding: 10px; border-radius: 6px; border: none; margin-bottom: 10px; background: white; color: black;">
+    <option value="student">I am a Student</option>
+    <option value="sme">I am an Employer (SME)</option>
+  </select>
+
+  <input id="register-first" type="text" placeholder="First Name">
+  <input id="register-last" type="text" placeholder="Last Name">
+  
+  <input id="register-company" type="text" placeholder="Company Name" style="display: none;">
+
+  <input id="register-email" type="email" placeholder="Email">
+  <input id="register-password" type="password" placeholder="Password">
+  
+  <button class="btn" onclick="register()">Create Account</button>
+  <p>Already registered? <a href="/login">Login</a></p>
+</div>
+
+<script>
+  // Simple script to show/hide the company name input
+  function toggleCompanyField() {
+    const role = document.getElementById("register-role").value;
+    const companyInput = document.getElementById("register-company");
+    if (role === "sme") {
+      companyInput.style.display = "block";
+    } else {
+      companyInput.style.display = "none";
+    }
+  }
+</script>
+{% endblock %}

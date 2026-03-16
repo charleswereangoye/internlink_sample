@@ -22,6 +22,11 @@ cursor:pointer;
 margin-left:20px;
 cursor:pointer;
 color:#8b91a8;
+text-decoration: none;
+}
+
+.nav-links a:hover {
+  color: #5dfc8d;
 }
 
 .page{
@@ -73,4 +78,16 @@ transition:0.3s;
 
 .toast.show{
 opacity:1;
+}
+
+.auth-box a {
+  color: #5dfc8d;
+  text-decoration: none; /* <-- The slash was removed here */
+  font-weight: bold;
+  transition: color 0.3s ease;
+}
+
+.auth-box a:hover,
+.auth-box a:active {
+  color: white; 
 }

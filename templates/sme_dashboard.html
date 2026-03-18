@@ -1,31 +1,108 @@
 {% extends "base.html" %}
 {% block content %}
 <h2>Employer Dashboard</h2>
-<p>Welcome to the SME Portal. Post a new local internship below.</p>
+<p>Welcome to the SME Portal. Post a new local internship and review candidates below.</p>
 
-<div class="auth-box" style="max-width: 600px; margin: 30px 0;">
+<div class="dashboard-card">
   <h3>Post a New Internship</h3>
-  
-  <input id="post-title" type="text" placeholder="Internship Title (e.g., Software Developer Intern)">
-  
-  <textarea id="post-desc" placeholder="Job Description..." style="padding: 10px; border-radius: 6px; border: none; font-family: inherit; resize: vertical; min-height: 80px;"></textarea>
-  
-  <input id="post-location" type="text" placeholder="Location (e.g., Kigali, Rwanda)">
-  
-  <div style="display: flex; gap: 10px;">
-    <div style="flex: 1;">
-      <label style="font-size: 12px; color: #8b91a8;">Start Date</label>
-      <input id="post-start" type="date" style="width: 100%; box-sizing: border-box;">
-    </div>
-    <div style="flex: 1;">
-      <label style="font-size: 12px; color: #8b91a8;">End Date</label>
-      <input id="post-end" type="date" style="width: 100%; box-sizing: border-box;">
-    </div>
+  <div class="form-group" style="margin-bottom: 15px;">
+    <input id="post-title" type="text" placeholder="Internship Title (e.g., Software Developer Intern)">
   </div>
-  
-  <button class="btn" onclick="postInternship()">Publish Internship</button>
+  <div class="form-group" style="margin-bottom: 15px;">
+    <textarea id="post-desc" placeholder="Job Description..." style="resize: vertical; min-height: 100px;"></textarea>
+  </div>
+  <div class="form-group" style="margin-bottom: 20px;">
+    <input id="post-location" type="text" placeholder="Location (e.g., Kigali, Rwanda)">
+  </div>
+  <div class="form-row">
+    <div class="form-group"><label>Start Date</label><input id="post-start" type="date"></div>
+    <div class="form-group"><label>End Date</label><input id="post-end" type="date"></div>
+  </div>
+  <button class="btn btn-save" onclick="postInternship()">Publish Internship</button>
 </div>
-<h3 style="margin-top: 50px; border-top: 1px solid #272c3d; padding-top: 20px;">Review Candidates</h3>
-<div id="sme-applications-container" class="internship-list">
+
+<div class="dashboard-card">
+  <h3>Manage Active Postings</h3>
+  <p style="margin-top: 0; margin-bottom: 15px; color: var(--muted); font-size: 0.9em;">
+    View, Edit, or close your currently active internship listings.
+  </p>
+  <div id="sme-postings-container"></div>
+</div>
+
+<div class="dashboard-card">
+  <h3>Candidate Pipeline</h3>
+  <div style="height: 260px; position: relative; width: 100%;">
+    <canvas id="applications-chart"></canvas>
   </div>
+</div>
+
+<div class="dashboard-card">
+  <h3>Live Applications (last 7 days)</h3>
+  <p style="margin-top: 0; margin-bottom: 15px; color: var(--muted); font-size: 0.9em;">
+    Updates automatically so you can see real application attempts.
+  </p>
+  <div style="height: 260px; position: relative; width: 100%;">
+    <canvas id="applications-live-chart"></canvas>
+  </div>
+</div>
+
+<h3 class="section-title">Review Candidates</h3>
+<div id="sme-applications-container" class="internship-list"></div>
+
+<div id="candidate-modal" class="modal-overlay">
+  <div class="modal-content">
+    <span class="modal-close" onclick="closeCandidateModal()">&times;</span>
+    <h3 style="margin-top:0;" id="modal-cand-name">Student Name</h3>
+    <p style="color: var(--muted); margin-top: -10px; margin-bottom: 20px;" id="modal-cand-email">email@test.com</p>
+    
+    <p><strong>University:</strong> <span id="modal-cand-uni"></span></p>
+    <p><strong>Major:</strong> <span id="modal-cand-major"></span></p>
+    <p><strong>Graduation Year:</strong> <span id="modal-cand-year"></span></p>
+    <div style="margin-top: 15px;">
+      <strong>Skills:</strong>
+      <p style="background: var(--input-bg); padding: 10px; border-radius: 8px; border: 1px solid var(--border); font-size: 14px;" id="modal-cand-skills"></p>
+    </div>
+  </div>
+</div>
+
+<div id="edit-job-modal" class="modal-overlay">
+  <div class="modal-content">
+    <span class="modal-close" onclick="closeEditJobModal()">&times;</span>
+    <h3 style="margin-top:0;">Edit Internship</h3>
+    <input type="hidden" id="edit-job-id">
+    
+    <div class="form-group" style="margin-bottom: 15px;">
+      <label>Title</label>
+      <input id="edit-title" type="text">
+    </div>
+    <div class="form-group" style="margin-bottom: 15px;">
+      <label>Description</label>
+      <textarea id="edit-desc" style="resize: vertical; min-height: 80px;"></textarea>
+    </div>
+    <div class="form-group" style="margin-bottom: 15px;">
+      <label>Location</label>
+      <input id="edit-location" type="text">
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Start Date</label><input id="edit-start" type="date"></div>
+      <div class="form-group"><label>End Date</label><input id="edit-end" type="date"></div>
+    </div>
+    <button class="btn btn-save" onclick="saveJobEdit()">Save Changes</button>
+  </div>
+</div>
+
+<div id="delete-job-modal" class="modal-overlay">
+  <div class="modal-content" style="max-width: 400px; text-align: center;">
+    <span class="modal-close" onclick="closeDeleteModal()">&times;</span>
+    <h3 style="margin-top:0; color: #b91c1c;">Close Internship?</h3>
+    <p style="color: var(--muted); margin-bottom: 25px; line-height: 1.5;">Are you sure you want to close this role? It will be hidden from students, but your candidate history will remain safe.</p>
+    
+    <input type="hidden" id="delete-job-id">
+    
+    <div style="display: flex; gap: 15px; justify-content: center;">
+      <button class="btn" style="background: transparent; color: var(--text); border: 1px solid var(--border); width: 100%;" onclick="closeDeleteModal()">Cancel</button>
+      <button class="btn" style="background: #b91c1c; color: white; border: none; width: 100%;" onclick="confirmDeleteInternship()">Yes, Close It</button>
+    </div>
+  </div>
+</div>
 {% endblock %}

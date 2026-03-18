@@ -2,7 +2,6 @@ import sqlite3
 
 conn = sqlite3.connect("database.db")
 
-# Drop the old table to start fresh
 conn.execute("DROP TABLE IF EXISTS users")
 
 conn.execute("""

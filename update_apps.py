@@ -2,7 +2,6 @@ import sqlite3
 
 conn = sqlite3.connect("database.db")
 
-# Creates the applications table safely
 conn.execute("""
 CREATE TABLE IF NOT EXISTS applications(
     id INTEGER PRIMARY KEY AUTOINCREMENT,

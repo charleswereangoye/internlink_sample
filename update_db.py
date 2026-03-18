@@ -2,7 +2,6 @@ import sqlite3
 
 conn = sqlite3.connect("database.db")
 
-# This safely creates the internships table without deleting your users
 conn.execute("""
 CREATE TABLE IF NOT EXISTS internships(
     id INTEGER PRIMARY KEY AUTOINCREMENT,

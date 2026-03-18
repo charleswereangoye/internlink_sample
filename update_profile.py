@@ -3,7 +3,6 @@ import sqlite3
 conn = sqlite3.connect("database.db")
 
 try:
-    # Adding the new profile columns to the existing users table
     conn.execute("ALTER TABLE users ADD COLUMN university TEXT")
     conn.execute("ALTER TABLE users ADD COLUMN major TEXT")
     conn.execute("ALTER TABLE users ADD COLUMN graduation_year INTEGER")

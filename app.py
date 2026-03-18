@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, jsonify
 import sqlite3
+from datetime import date, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
@@ -27,7 +28,7 @@ def sme_dashboard():
     return render_template("sme_dashboard.html")
 
 # --- INTERNSHIP API ROUTES ---
-@app.route("/api/internships", methods=["GET", "POST"])
+@app.route("/api/internships", methods=["GET", "POST", "DELETE", "PUT"])
 def api_internships():
     conn = get_db()
     
@@ -35,22 +36,60 @@ def api_internships():
         data = request.json
         try:
             conn.execute(
-                "INSERT INTO internships (sme_id, title, description, location, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO internships (sme_id, title, description, location, start_date, end_date, is_active) VALUES (?, ?, ?, ?, ?, ?, 1)",
                 (data["sme_id"], data["title"], data["description"], data["location"], data["start_date"], data["end_date"])
             )
             conn.commit()
             return jsonify({"status": "success", "message": "Internship published!"})
         except Exception as e:
-            return jsonify({"status": "error", "message": "Database error"})
+            try:
+                conn.execute(
+                    "INSERT INTO internships (sme_id, title, description, location, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?)",
+                    (data["sme_id"], data["title"], data["description"], data["location"], data["start_date"], data["end_date"])
+                )
+                conn.commit()
+                return jsonify({"status": "success", "message": "Internship published!"})
+            except Exception as inner_e:
+                return jsonify({"status": "error", "message": "Database error"})
         finally:
             conn.close()
             
-    else: # GET request (Fetching jobs for the listings page)
-        # We join the tables to get the SME's company_name on the job card
+    elif request.method == "PUT": # NEW: Handle Editing Internships
+        data = request.json
+        internship_id = data.get("internship_id")
+        try:
+            conn.execute(
+                "UPDATE internships SET title=?, description=?, location=?, start_date=?, end_date=? WHERE id=? AND sme_id=?",
+                (data["title"], data["description"], data["location"], data["start_date"], data["end_date"], internship_id, data["sme_id"])
+            )
+            conn.commit()
+            return jsonify({"status": "success", "message": "Internship updated successfully!"})
+        except Exception as e:
+            return jsonify({"status": "error", "message": "Failed to update internship."})
+        finally:
+            conn.close()
+            
+    elif request.method == "DELETE":
+        data = request.json
+        internship_id = data.get("internship_id")
+        if not internship_id:
+            conn.close()
+            return jsonify({"status": "error", "message": "Internship ID is missing."}), 400
+        try:
+            conn.execute("UPDATE internships SET is_active = 0 WHERE id = ?", (internship_id,))
+            conn.commit()
+            return jsonify({"status": "success", "message": "Internship closed successfully!"})
+        except Exception as e:
+            return jsonify({"status": "error", "message": "Failed to close internship."})
+        finally:
+            conn.close()
+            
+    else: # GET request
         jobs = conn.execute("""
             SELECT i.*, u.company_name 
             FROM internships i 
             JOIN users u ON i.sme_id = u.id 
+            WHERE i.is_active = 1 OR i.is_active IS NULL
             ORDER BY i.created_at DESC
         """).fetchall()
         conn.close()
@@ -61,15 +100,12 @@ def api_internships():
 def api_applications():
     conn = get_db()
     
-    if request.method == "POST": # A student clicks "Apply"
+    if request.method == "POST": 
         data = request.json
-        
-        # Check if they already applied to prevent spam
         existing = conn.execute("SELECT * FROM applications WHERE student_id=? AND internship_id=?", 
                                (data["student_id"], data["internship_id"])).fetchone()
         if existing:
             return jsonify({"status": "error", "message": "You already applied to this internship."})
-            
         try:
             conn.execute(
                 "INSERT INTO applications (student_id, internship_id) VALUES (?, ?)",
@@ -82,22 +118,22 @@ def api_applications():
         finally:
             conn.close()
             
-    elif request.method == "GET": # Dashboards fetching the application list
+    elif request.method == "GET": 
         user_id = request.args.get("user_id")
         role = request.args.get("role")
         
         if role == "sme":
-            # SMEs see who applied to THEIR jobs
+            # UPDATED: Now fetching university, major, graduation_year, and skills!
             apps = conn.execute("""
                 SELECT a.id as app_id, a.status, a.application_date, 
-                       u.first, u.last, u.email, i.title 
+                       u.first, u.last, u.email, u.university, u.major, u.graduation_year, u.skills,
+                       i.title 
                 FROM applications a
                 JOIN users u ON a.student_id = u.id
                 JOIN internships i ON a.internship_id = i.id
                 WHERE i.sme_id = ? ORDER BY a.application_date DESC
             """, (user_id,)).fetchall()
         else:
-            # Students see their own application history
             apps = conn.execute("""
                 SELECT a.id as app_id, a.status, a.application_date, 
                        i.title, i.location, u.company_name
@@ -110,27 +146,59 @@ def api_applications():
         conn.close()
         return jsonify([dict(ix) for ix in apps])
         
-    elif request.method == "PUT": # SME accepts or rejects an application
+    elif request.method == "PUT": 
         data = request.json
         conn.execute("UPDATE applications SET status = ? WHERE id = ?", (data["status"], data["app_id"]))
         conn.commit()
         conn.close()
         return jsonify({"status": "success", "message": f"Application marked as {data['status']}!"})
 
-# --- SKILL PROFILE API (MOVED ABOVE APP.RUN) ---
+# --- SME LIVE METRICS API ---
+@app.route("/api/sme_metrics/applications_timeseries", methods=["GET"])
+def sme_applications_timeseries():
+    sme_id = request.args.get("user_id")
+    if not sme_id:
+        return jsonify({"status": "error", "message": "user_id required"}), 400
+
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            """
+            SELECT date(COALESCE(a.application_date, 'now')) AS day, COUNT(*) AS cnt
+            FROM applications a
+            JOIN internships i ON a.internship_id = i.id
+            WHERE i.sme_id = ?
+              AND date(COALESCE(a.application_date, 'now')) >= date('now','-6 days')
+            GROUP BY day
+            ORDER BY day ASC
+            """,
+            (sme_id,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    counts_by_day = {r["day"]: int(r["cnt"]) for r in rows}
+    labels = []
+    counts = []
+    for offset in range(6, -1, -1):
+        d = (date.today() - timedelta(days=offset)).isoformat()
+        labels.append(d)
+        counts.append(counts_by_day.get(d, 0))
+
+    return jsonify({"status": "success", "labels": labels, "counts": counts})
+
+# --- SKILL PROFILE API ---
 @app.route("/api/profile", methods=["GET", "PUT"])
 def api_profile():
     conn = get_db()
     
-    if request.method == "GET": # Load the profile data
+    if request.method == "GET": 
         user_id = request.args.get("user_id")
         user = conn.execute("SELECT university, major, graduation_year, skills FROM users WHERE id=?", (user_id,)).fetchone()
         conn.close()
-        
-        # If user exists, return their data, otherwise return empty dictionary
         return jsonify(dict(user) if user else {})
         
-    elif request.method == "PUT": # Save the profile data
+    elif request.method == "PUT": 
         data = request.json
         try:
             conn.execute(
@@ -140,7 +208,6 @@ def api_profile():
             conn.commit()
             return jsonify({"status": "success", "message": "Skill Profile updated!"})
         except Exception as e:
-            print("🚨 CRASH REPORT:", e) 
             return jsonify({"status": "error", "message": "Failed to update profile."})
         finally:
             conn.close()
@@ -153,47 +220,35 @@ def match_internships():
         return jsonify({"status": "error", "message": "User ID required"})
 
     conn = get_db()
-    
-    # 1. Get the student's saved skills
     student = conn.execute("SELECT skills FROM users WHERE id=?", (user_id,)).fetchone()
     if not student or not student["skills"]:
         conn.close()
         return jsonify({"status": "error", "message": "No skills found. Please update your profile first!"})
 
-    # Clean up the skills list (e.g., "Python, React" -> ["python", "react"])
     raw_skills = student["skills"].split(",")
     skills = [s.strip().lower() for s in raw_skills if s.strip()]
 
-    # 2. Get all local internships
     jobs = conn.execute("""
         SELECT i.*, u.company_name 
         FROM internships i 
         JOIN users u ON i.sme_id = u.id 
-        WHERE i.is_active = 1
-    """).fetchall()
+        WHERE i.is_active = 1 OR i.is_active IS NULL
+    """).fetchall() 
     conn.close()
 
-    # 3. The Matching Algorithm
     matched_jobs = []
     for job in jobs:
         job_dict = dict(job)
         score = 0
-        # Combine title and description and make it lowercase for scanning
         job_text = (job_dict["title"] + " " + job_dict["description"]).lower()
-        
-        # Count how many of the student's skills appear in the job text
         for skill in skills:
             if skill in job_text:
                 score += 1
-        
-        # Only keep jobs that have at least 1 matching skill
         if score > 0:
             job_dict["match_score"] = score
             matched_jobs.append(job_dict)
 
-    # Sort the results so the highest matching score appears first
     matched_jobs.sort(key=lambda x: x["match_score"], reverse=True)
-
     return jsonify({"status": "success", "matches": matched_jobs})
 
 # --- AUTHENTICATION ROUTES ---
@@ -210,7 +265,6 @@ def register():
     company_name = data.get("companyName", "") 
     
     conn = get_db()
-    
     try:
         conn.execute(
             "INSERT INTO users (first, last, email, password, role, company_name) VALUES (?, ?, ?, ?, ?, ?)",
@@ -237,11 +291,9 @@ def login():
     conn.close()
 
     if user and check_password_hash(user["password"], data["password"]):
-        # Return the role AND user_id so the frontend knows who is posting
         return jsonify({"status": "success", "role": user["role"], "user_id": user["id"]})
     else:
         return jsonify({"status": "error", "message": "Invalid email or password"})
 
-# THIS MUST ALWAYS REMAIN AT THE VERY BOTTOM OF THE FILE
 if __name__ == "__main__":
     app.run(debug=True)

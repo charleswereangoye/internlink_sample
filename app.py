@@ -1,14 +1,91 @@
+import os
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from flask import Flask, render_template, request, jsonify
-import sqlite3
 from datetime import date, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
+from dotenv import load_dotenv
+
+# Load variables from .env file
+basedir = os.path.abspath(os.path.dirname(__file__))
+load_dotenv(os.path.join(basedir, '.env'))
 
 app = Flask(__name__)
 
+# --- DATABASE WRAPPER ---
+# This wrapper lets psycopg2 act exactly like your old sqlite3 code!
+class DBWrapper:
+    def __init__(self, conn):
+        self.conn = conn
+
+    def execute(self, query, params=()):
+        cur = self.conn.cursor()
+        cur.execute(query, params)
+        return cur
+
+    def commit(self):
+        self.conn.commit()
+
+    def close(self):
+        self.conn.close()
+
 def get_db():
-    conn = sqlite3.connect("database.db")
-    conn.row_factory = sqlite3.Row
-    return conn
+    db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        raise ValueError("ERROR: DATABASE_URL is missing from your .env file!")
+    
+    conn = psycopg2.connect(db_url, cursor_factory=RealDictCursor)
+    return DBWrapper(conn)
+
+# --- CLOUD DATABASE SETUP ROUTE ---
+# Visit http://127.0.0.1:5000/init-db ONE TIME to build your tables in Aiven
+@app.route("/init-db")
+def init_db():
+    conn = get_db()
+    try:
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            first VARCHAR(100),
+            last VARCHAR(100),
+            email VARCHAR(120) UNIQUE,
+            password VARCHAR(255),
+            role VARCHAR(20),
+            company_name VARCHAR(150),
+            university VARCHAR(150),
+            major VARCHAR(100),
+            graduation_year VARCHAR(10),
+            skills TEXT
+        );
+        """)
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS internships (
+            id SERIAL PRIMARY KEY,
+            sme_id INTEGER REFERENCES users(id),
+            title VARCHAR(150),
+            description TEXT,
+            location VARCHAR(100),
+            start_date VARCHAR(20),
+            end_date VARCHAR(20),
+            is_active INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS applications (
+            id SERIAL PRIMARY KEY,
+            student_id INTEGER REFERENCES users(id),
+            internship_id INTEGER REFERENCES internships(id),
+            status VARCHAR(50) DEFAULT 'Pending',
+            application_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
+        conn.commit()
+        return "Cloud Database tables created successfully! You are ready to go."
+    except Exception as e:
+        return f"Error creating tables: {e}"
+    finally:
+        conn.close()
 
 # --- HTML PAGE ROUTES ---
 @app.route("/")
@@ -36,7 +113,7 @@ def api_internships():
         data = request.json
         try:
             conn.execute(
-                "INSERT INTO internships (sme_id, title, description, location, start_date, end_date, is_active) VALUES (?, ?, ?, ?, ?, ?, 1)",
+                "INSERT INTO internships (sme_id, title, description, location, start_date, end_date, is_active) VALUES (%s, %s, %s, %s, %s, %s, 1)",
                 (data["sme_id"], data["title"], data["description"], data["location"], data["start_date"], data["end_date"])
             )
             conn.commit()
@@ -44,7 +121,7 @@ def api_internships():
         except Exception as e:
             try:
                 conn.execute(
-                    "INSERT INTO internships (sme_id, title, description, location, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO internships (sme_id, title, description, location, start_date, end_date) VALUES (%s, %s, %s, %s, %s, %s)",
                     (data["sme_id"], data["title"], data["description"], data["location"], data["start_date"], data["end_date"])
                 )
                 conn.commit()
@@ -54,12 +131,12 @@ def api_internships():
         finally:
             conn.close()
             
-    elif request.method == "PUT": # NEW: Handle Editing Internships
+    elif request.method == "PUT": 
         data = request.json
         internship_id = data.get("internship_id")
         try:
             conn.execute(
-                "UPDATE internships SET title=?, description=?, location=?, start_date=?, end_date=? WHERE id=? AND sme_id=?",
+                "UPDATE internships SET title=%s, description=%s, location=%s, start_date=%s, end_date=%s WHERE id=%s AND sme_id=%s",
                 (data["title"], data["description"], data["location"], data["start_date"], data["end_date"], internship_id, data["sme_id"])
             )
             conn.commit()
@@ -76,7 +153,7 @@ def api_internships():
             conn.close()
             return jsonify({"status": "error", "message": "Internship ID is missing."}), 400
         try:
-            conn.execute("UPDATE internships SET is_active = 0 WHERE id = ?", (internship_id,))
+            conn.execute("UPDATE internships SET is_active = 0 WHERE id = %s", (internship_id,))
             conn.commit()
             return jsonify({"status": "success", "message": "Internship closed successfully!"})
         except Exception as e:
@@ -102,13 +179,13 @@ def api_applications():
     
     if request.method == "POST": 
         data = request.json
-        existing = conn.execute("SELECT * FROM applications WHERE student_id=? AND internship_id=?", 
+        existing = conn.execute("SELECT * FROM applications WHERE student_id=%s AND internship_id=%s", 
                                (data["student_id"], data["internship_id"])).fetchone()
         if existing:
             return jsonify({"status": "error", "message": "You already applied to this internship."})
         try:
             conn.execute(
-                "INSERT INTO applications (student_id, internship_id) VALUES (?, ?)",
+                "INSERT INTO applications (student_id, internship_id) VALUES (%s, %s)",
                 (data["student_id"], data["internship_id"])
             )
             conn.commit()
@@ -123,7 +200,6 @@ def api_applications():
         role = request.args.get("role")
         
         if role == "sme":
-            # UPDATED: Now fetching university, major, graduation_year, and skills!
             apps = conn.execute("""
                 SELECT a.id as app_id, a.status, a.application_date, 
                        u.first, u.last, u.email, u.university, u.major, u.graduation_year, u.skills,
@@ -131,7 +207,7 @@ def api_applications():
                 FROM applications a
                 JOIN users u ON a.student_id = u.id
                 JOIN internships i ON a.internship_id = i.id
-                WHERE i.sme_id = ? ORDER BY a.application_date DESC
+                WHERE i.sme_id = %s ORDER BY a.application_date DESC
             """, (user_id,)).fetchall()
         else:
             apps = conn.execute("""
@@ -140,7 +216,7 @@ def api_applications():
                 FROM applications a
                 JOIN internships i ON a.internship_id = i.id
                 JOIN users u ON i.sme_id = u.id
-                WHERE a.student_id = ? ORDER BY a.application_date DESC
+                WHERE a.student_id = %s ORDER BY a.application_date DESC
             """, (user_id,)).fetchall()
             
         conn.close()
@@ -148,7 +224,7 @@ def api_applications():
         
     elif request.method == "PUT": 
         data = request.json
-        conn.execute("UPDATE applications SET status = ? WHERE id = ?", (data["status"], data["app_id"]))
+        conn.execute("UPDATE applications SET status = %s WHERE id = %s", (data["status"], data["app_id"]))
         conn.commit()
         conn.close()
         return jsonify({"status": "success", "message": f"Application marked as {data['status']}!"})
@@ -162,13 +238,14 @@ def sme_applications_timeseries():
 
     conn = get_db()
     try:
+        # Postgres uses a slightly different date logic than SQLite
         rows = conn.execute(
             """
-            SELECT date(COALESCE(a.application_date, 'now')) AS day, COUNT(*) AS cnt
+            SELECT TO_CHAR(COALESCE(a.application_date, CURRENT_TIMESTAMP), 'YYYY-MM-DD') AS day, COUNT(*) AS cnt
             FROM applications a
             JOIN internships i ON a.internship_id = i.id
-            WHERE i.sme_id = ?
-              AND date(COALESCE(a.application_date, 'now')) >= date('now','-6 days')
+            WHERE i.sme_id = %s
+              AND COALESCE(a.application_date, CURRENT_TIMESTAMP) >= CURRENT_DATE - INTERVAL '6 days'
             GROUP BY day
             ORDER BY day ASC
             """,
@@ -194,7 +271,7 @@ def api_profile():
     
     if request.method == "GET": 
         user_id = request.args.get("user_id")
-        user = conn.execute("SELECT university, major, graduation_year, skills FROM users WHERE id=?", (user_id,)).fetchone()
+        user = conn.execute("SELECT university, major, graduation_year, skills FROM users WHERE id=%s", (user_id,)).fetchone()
         conn.close()
         return jsonify(dict(user) if user else {})
         
@@ -202,7 +279,7 @@ def api_profile():
         data = request.json
         try:
             conn.execute(
-                "UPDATE users SET university=?, major=?, graduation_year=?, skills=? WHERE id=?",
+                "UPDATE users SET university=%s, major=%s, graduation_year=%s, skills=%s WHERE id=%s",
                 (data.get("university"), data.get("major"), data.get("graduation_year"), data.get("skills"), data.get("user_id"))
             )
             conn.commit()
@@ -220,7 +297,7 @@ def match_internships():
         return jsonify({"status": "error", "message": "User ID required"})
 
     conn = get_db()
-    student = conn.execute("SELECT skills FROM users WHERE id=?", (user_id,)).fetchone()
+    student = conn.execute("SELECT skills FROM users WHERE id=%s", (user_id,)).fetchone()
     if not student or not student["skills"]:
         conn.close()
         return jsonify({"status": "error", "message": "No skills found. Please update your profile first!"})
@@ -267,12 +344,12 @@ def register():
     conn = get_db()
     try:
         conn.execute(
-            "INSERT INTO users (first, last, email, password, role, company_name) VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO users (first, last, email, password, role, company_name) VALUES (%s, %s, %s, %s, %s, %s)",
             (data["first"], data["last"], data["email"], hashed_password, data["role"], company_name)
         )
         conn.commit()
         return jsonify({"status": "success", "message": "User registered successfully!"})
-    except sqlite3.IntegrityError:
+    except psycopg2.IntegrityError: # Changed from sqlite3 to psycopg2
         return jsonify({"status": "error", "message": "Email already registered."})
     finally:
         conn.close()
@@ -287,7 +364,7 @@ def login():
         return jsonify({"status": "error", "message": "Missing credentials"}), 400
 
     conn = get_db()
-    user = conn.execute("SELECT * FROM users WHERE email=?", (data["email"],)).fetchone()
+    user = conn.execute("SELECT * FROM users WHERE email=%s", (data["email"],)).fetchone()
     conn.close()
 
     if user and check_password_hash(user["password"], data["password"]):

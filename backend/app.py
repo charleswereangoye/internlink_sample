@@ -16,7 +16,7 @@ app = Flask(__name__)
 CORS(app)
 
 # --- DATABASE WRAPPER ---
-# Provides a standardized interface for executing psycopg2 queries 
+# Provides a standardized interface for executing psycopg queries 
 # to maintain backward compatibility with previous architecture.
 class DBWrapper:
     def __init__(self, conn):
@@ -38,7 +38,7 @@ def get_db():
     if not db_url:
         raise ValueError("Configuration Error: DATABASE_URL is missing from the environment.")
     
-    conn = psycopg2.connect(db_url, cursor_factory=RealDictCursor)
+    conn = psycopg.connect(db_url, row_factory=dict_row)
     return DBWrapper(conn)
 
 # --- CLOUD DATABASE SETUP ROUTE ---
@@ -332,7 +332,7 @@ def register():
         )
         conn.commit()
         return jsonify({"status": "success", "message": "Registration successful."})
-    except psycopg2.IntegrityError:
+    except psycopg.IntegrityError:  # <-- FIXED HERE
         return jsonify({"status": "error", "message": "Email is already provisioned."})
     finally:
         conn.close()

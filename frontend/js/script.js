@@ -1,6 +1,36 @@
-/* =========================
-   API: FETCH LOCAL & GLOBAL JOBS
-========================= */
+/**
+ * InternLink Client-Side Logic
+ * Architecture: Decoupled Frontend
+ * Description: Handles DOM manipulation, state management via localStorage, 
+ * and asynchronous communication with the Flask REST API.
+ */
+
+/** * Centralized Backend Configuration 
+ * Points to the local Python/Flask server. In a production environment, 
+ * this variable should be updated to the deployed cloud server URI.
+ */
+const API_BASE_URL = "http://127.0.0.1:5000";
+
+/**
+ * Global Authentication Redirect
+ * Intercepts authenticated users attempting to view the public landing page
+ * and securely routes them to their respective dashboards.
+ */
+(function () {
+  const isLoggedIn = localStorage.getItem("loggedIn");
+  const userRole = localStorage.getItem("userRole");
+  const path = window.location.pathname;
+
+  if (isLoggedIn === "true" && (path === "/" || path.endsWith("index.html"))) {
+    window.location.href = (userRole === "sme") ? "sme_dashboard.html" : "dashboard.html";
+  }
+})();
+
+/**
+ * Fetches and aggregates internship opportunities from both the internal 
+ * PostgreSQL database and an external third-party job board API.
+ * Renders the results dynamically into the DOM.
+ */
 async function fetchJobs() {
   const container = document.getElementById("api-jobs-container");
   if (!container) return; 
@@ -8,15 +38,18 @@ async function fetchJobs() {
   container.innerHTML = "<p>Loading internships...</p>";
 
   try {
-    const localRes = await fetch("/api/internships");
+    // Fetch local opportunities from the backend API
+    const localRes = await fetch(`${API_BASE_URL}/api/internships`);
     const localJobs = await localRes.json();
 
+    // Fetch global remote opportunities from external API
     const extRes = await fetch("https://www.arbeitnow.com/api/job-board-api");
     const extJson = await extRes.json();
     const extJobs = extJson.data.slice(0, 10);
 
     container.innerHTML = ""; 
 
+    // Helper function to demote specific external roles for better local visibility
     const isFrontEndDevIntern = (title) => (title || "").trim().toLowerCase() === "front end developer intern";
     const pushFrontEndDevInternToBottom = (jobs) =>
       [...jobs].sort((a, b) => {
@@ -26,6 +59,7 @@ async function fetchJobs() {
         return aIs ? 1 : -1;
       });
 
+    // Render External Jobs
     const extHeader = document.createElement("h3");
     extHeader.textContent = "Global Remote Opportunities";
     container.appendChild(extHeader);
@@ -42,6 +76,7 @@ async function fetchJobs() {
       container.appendChild(card);
     });
 
+    // Render Internal (Local) Jobs
     if (localJobs.length > 0) {
       const localHeader = document.createElement("h3");
       localHeader.textContent = "Local Opportunities (InternLink Exclusive)";
@@ -65,15 +100,16 @@ async function fetchJobs() {
     }
 
   } catch (err) {
-    container.innerHTML = "<p>Failed to load jobs.</p>";
+    container.innerHTML = "<p>Failed to load job listings. Please check your network connection.</p>";
   }
 }
 
 document.addEventListener("DOMContentLoaded", fetchJobs);
 
-/* =========================
-   SME POST INTERNSHIP
-========================= */
+/**
+ * Validates and submits a new internship posting payload to the backend.
+ * Restricted to authenticated SME users.
+ */
 async function postInternship() {
   const title = document.getElementById("post-title").value;
   const description = document.getElementById("post-desc").value;
@@ -87,7 +123,7 @@ async function postInternship() {
   }
 
   try {
-    const res = await fetch("/api/internships", {
+    const res = await fetch(`${API_BASE_URL}/api/internships`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sme_id: smeId, title: title, description: description, location: location, start_date: startDate, end_date: endDate })
@@ -97,6 +133,7 @@ async function postInternship() {
     showToast(data.message);
 
     if (data.status === "success") {
+      // Clear form inputs upon successful submission
       document.getElementById("post-title").value = "";
       document.getElementById("post-desc").value = "";
       document.getElementById("post-location").value = "";
@@ -104,13 +141,14 @@ async function postInternship() {
       if (typeof loadSmePostings === "function") loadSmePostings();
     }
   } catch (err) {
-    showToast("Failed to post internship.");
+    showToast("Failed to post internship due to a server error.");
   }
 }
 
-/* =========================
-   SME MANAGE POSTINGS (EDIT / DELETE)
-========================= */
+/**
+ * Retrieves and renders internships specific to the logged-in SME.
+ * Provides interface elements for updating or soft-deleting records.
+ */
 async function loadSmePostings() {
   const userId = localStorage.getItem("userId");
   const container = document.getElementById("sme-postings-container");
@@ -120,12 +158,14 @@ async function loadSmePostings() {
   container.innerHTML = "<p style='color: var(--muted);'>Loading your postings...</p>";
 
   try {
-    const res = await fetch("/api/internships");
+    const res = await fetch(`${API_BASE_URL}/api/internships`);
     const allJobs = await res.json();
+    
+    // Filter payload client-side for SME-specific records
     const myJobs = allJobs.filter(job => String(job.sme_id) === String(userId));
 
     if (myJobs.length === 0) {
-      container.innerHTML = "<p style='color: var(--muted);'>You haven't posted any active internships.</p>";
+      container.innerHTML = "<p style='color: var(--muted);'>You have not posted any active internships.</p>";
       return;
     }
 
@@ -144,6 +184,7 @@ async function loadSmePostings() {
       card.style.flexWrap = "wrap";
       card.style.gap = "10px";
 
+      // Serialize job object for inline DOM injection
       const jobData = JSON.stringify(job).replace(/"/g, '&quot;');
 
       card.innerHTML = `
@@ -163,11 +204,13 @@ async function loadSmePostings() {
       container.appendChild(card);
     });
   } catch (err) {
-    container.innerHTML = "<p style='color: #b91c1c;'>Error loading your postings.</p>";
+    container.innerHTML = "<p style='color: #b91c1c;'>Error establishing connection to retrieve postings.</p>";
   }
 }
 
-// Modal Delete Functions
+/**
+ * Modal state management functions for Delete and Edit operations
+ */
 function openDeleteModal(jobId) {
   document.getElementById("delete-job-id").value = jobId;
   document.getElementById("delete-job-modal").style.display = "flex";
@@ -177,12 +220,15 @@ function closeDeleteModal() {
   document.getElementById("delete-job-modal").style.display = "none";
 }
 
+/**
+ * Executes a soft-delete (status update) on an internship record via the API.
+ */
 async function confirmDeleteInternship() {
   const jobId = document.getElementById("delete-job-id").value;
   if (!jobId) return;
 
   try {
-    const res = await fetch("/api/internships", {
+    const res = await fetch(`${API_BASE_URL}/api/internships`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ internship_id: jobId })
@@ -195,11 +241,10 @@ async function confirmDeleteInternship() {
       loadSmePostings(); 
     }
   } catch (err) {
-    showToast("Failed to close internship.");
+    showToast("Failed to close internship. Server error.");
   }
 }
 
-// Modal Edit Functions
 function openEditJobModal(job) {
   document.getElementById("edit-job-id").value = job.id;
   document.getElementById("edit-title").value = job.title;
@@ -214,6 +259,9 @@ function closeEditJobModal() {
   document.getElementById("edit-job-modal").style.display = "none";
 }
 
+/**
+ * Submits updated internship details via HTTP PUT request.
+ */
 async function saveJobEdit() {
   const jobId = document.getElementById("edit-job-id").value;
   const smeId = localStorage.getItem("userId");
@@ -224,7 +272,7 @@ async function saveJobEdit() {
   const end = document.getElementById("edit-end").value;
 
   try {
-    const res = await fetch("/api/internships", {
+    const res = await fetch(`${API_BASE_URL}/api/internships`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ internship_id: jobId, sme_id: smeId, title: title, description: desc, location: loc, start_date: start, end_date: end })
@@ -236,15 +284,16 @@ async function saveJobEdit() {
       loadSmePostings();
     }
   } catch (err) {
-    showToast("Failed to update internship.");
+    showToast("Failed to update internship record.");
   }
 }
 
 document.addEventListener("DOMContentLoaded", loadSmePostings);
 
-/* =========================
-   NAVIGATION UPDATER (SMART ROUTER)
-========================= */
+/**
+ * Role-Based Access Control (RBAC) Client Routing
+ * Dynamically updates navigation bar links based on local authentication state.
+ */
 function updateNav() {
   const isLoggedIn = localStorage.getItem("loggedIn");
   const userRole = localStorage.getItem("userRole"); 
@@ -258,14 +307,11 @@ function updateNav() {
   const matchBtn = document.getElementById("match-me-btn"); 
 
   if (isLoggedIn === "true") {
-    const dashUrl = (userRole === "sme") ? "/sme_dashboard" : "/dashboard";
+    // Route to appropriate dashboard based on user identity
+    const dashUrl = (userRole === "sme") ? "sme_dashboard.html" : "dashboard.html";
 
-    // 🔄 Logo simply refreshes the current page
     if (navLogo) navLogo.onclick = () => window.location.reload();
-    
-    // ❌ Hide Home link
     if (navHome) navHome.style.display = "none";
-
     if (navLogin) navLogin.style.display = "none";
     if (navRegister) navRegister.style.display = "none";
     if (navLogout) navLogout.style.display = "inline-block";
@@ -278,12 +324,9 @@ function updateNav() {
     if (matchBtn) matchBtn.style.display = (userRole === "student") ? "inline-block" : "none";
     
   } else {
-    // 🏠 Logged out: Logo goes to landing page
-    if (navLogo) navLogo.onclick = () => window.location.href = "/";
-    
-    // Show Home link
+    // Unauthenticated state view
+    if (navLogo) navLogo.onclick = () => window.location.href = "index.html";
     if (navHome) navHome.style.display = "inline-block";
-
     if (navLogin) navLogin.style.display = "inline-block";
     if (navRegister) navRegister.style.display = "inline-block";
     if (navDash) navDash.style.display = "none";
@@ -293,9 +336,10 @@ function updateNav() {
 }
 document.addEventListener("DOMContentLoaded", updateNav);
 
-/* =========================
-   THEME TOGGLE (LIGHT/DARK)
-========================= */
+/**
+ * UI/UX Theme Management
+ * Persists user preference via localStorage and applies CSS variable sets.
+ */
 function applyTheme(theme) {
   const next = (theme === "light" || theme === "dark") ? theme : "dark";
   document.documentElement.dataset.theme = next;
@@ -322,6 +366,7 @@ document.addEventListener("DOMContentLoaded", () => {
   applyTheme(savedTheme);
 });
 
+// Chart.js Theme Subroutines
 function getChartTextColor() {
   const theme = document.documentElement.dataset.theme || "dark";
   return theme === "light" ? "#45506a" : "#a3aac8";
@@ -337,6 +382,9 @@ function getChartBorderColor() {
   return theme === "light" ? "#ffffff" : "#0f172a";
 }
 
+/**
+ * Synchronizes Chart.js instance colors with the active DOM dataset theme.
+ */
 function updateChartColors() {
   const textColor = getChartTextColor();
   const gridColor = getChartGridColor();
@@ -358,31 +406,36 @@ function updateChartColors() {
   }
 }
 
-/* =========================
-   AUTHENTICATION LOGIC
-========================= */
+/**
+ * Authentication Controllers
+ * Manages HTTP session requests and client-side token storage.
+ */
 async function login() {
   const email = document.querySelector("#login-email").value;
   const password = document.querySelector("#login-password").value;
-  if (!email || !password) return showToast("Please fill all fields");
+  if (!email || !password) return showToast("Please fill all required fields");
 
   try {
-    const res = await fetch("/login", {
+    const res = await fetch(`${API_BASE_URL}/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: email, password: password })
     });
     const data = await res.json();
+    
     if (data.status === "success") {
-      showToast("Login successful");
+      showToast("Authentication successful");
+      // Store session metadata securely
       localStorage.setItem("loggedIn", "true"); 
       localStorage.setItem("userRole", data.role); 
       localStorage.setItem("userId", data.user_id); 
-      setTimeout(() => window.location.href = data.role === "sme" ? "/sme_dashboard" : "/dashboard", 700);
+      
+      // Redirect based on RBAC identity
+      setTimeout(() => window.location.href = data.role === "sme" ? "sme_dashboard.html" : "dashboard.html", 700);
     } else {
-      showToast("Invalid email or password");
+      showToast("Authentication failed: Invalid credentials");
     }
-  } catch (err) { showToast("Server error"); }
+  } catch (err) { showToast("Internal server error during authentication"); }
 }
 
 async function register() {
@@ -395,55 +448,71 @@ async function register() {
   const email = document.querySelector("#register-email").value;
   const password = document.querySelector("#register-password").value;
 
-  if (!first || !last || !email || !password || (role === "sme" && !companyName)) return showToast("Please fill all required fields");
+  // Enforce validation rule: SMEs must provide a company name
+  if (!first || !last || !email || !password || (role === "sme" && !companyName)) {
+      return showToast("Please fill all required fields to proceed.");
+  }
 
   try {
-    const res = await fetch("/register", {
+    const res = await fetch(`${API_BASE_URL}/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ role, companyName, first, last, email, password })
     });
     const data = await res.json();
     showToast(data.message);
-    if (data.status === "success") setTimeout(() => window.location.href = "/login", 900);
-  } catch (err) { showToast("Registration failed"); }
+    
+    if (data.status === "success") setTimeout(() => window.location.href = "login.html", 900);
+  } catch (err) { showToast("Registration payload rejected by server"); }
 }
 
 function logout() {
+  // Purge local session metadata
   localStorage.removeItem("loggedIn"); 
   localStorage.removeItem("userRole");
   localStorage.removeItem("userId");
-  showToast("Logged out successfully");
-  setTimeout(() => window.location.href = "/", 700);
+  showToast("Session terminated successfully");
+  setTimeout(() => window.location.href = "index.html", 700);
 }
 
+/**
+ * Utility: UI notification handler
+ */
 function showToast(message) {
   const toast = document.getElementById('toast');
+  if (!toast) return; 
   toast.textContent = message;
   toast.classList.add("show");
   setTimeout(() => toast.classList.remove("show"), 2500);
 }
 
-/* =========================
-   APPLICATION TRACKING
-========================= */
+/**
+ * Application Tracking Module
+ * Handles interactions between Students applying to SME job postings.
+ */
 async function applyInternally(internshipId) {
   const userId = localStorage.getItem("userId");
   const role = localStorage.getItem("userRole");
-  if (!userId) return showToast("Please login to apply.");
-  if (role !== "student") return showToast("Only Student accounts can apply.");
+  
+  // Guard clauses for unauthenticated or incorrect role attempts
+  if (!userId) return showToast("Authentication required to apply.");
+  if (role !== "student") return showToast("Action restricted to Student accounts.");
   
   try {
-    const res = await fetch("/api/applications", {
+    const res = await fetch(`${API_BASE_URL}/api/applications`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ student_id: userId, internship_id: internshipId })
     });
     const data = await res.json();
     showToast(data.message);
-  } catch (err) { showToast("Error submitting application."); }
+  } catch (err) { showToast("Transaction failed. Application not submitted."); }
 }
 
+/**
+ * Fetches and populates the dashboard matrix based on user role.
+ * Students see their application history; SMEs see their candidate pipeline.
+ */
 async function loadDashboardData() {
   const userId = localStorage.getItem("userId");
   const role = localStorage.getItem("userRole");
@@ -453,16 +522,17 @@ async function loadDashboardData() {
   const container = document.getElementById(containerId);
   if (!container) return; 
   
-  container.innerHTML = "<p>Loading records...</p>";
+  container.innerHTML = "<p>Retrieving database records...</p>";
   
   try {
-    const res = await fetch(`/api/applications?user_id=${userId}&role=${role}`);
+    const res = await fetch(`${API_BASE_URL}/api/applications?user_id=${userId}&role=${role}`);
     const apps = await res.json();
 
+    // Initialize data visualization
     renderApplicationsChart(apps);
     
     if (apps.length === 0) {
-      container.innerHTML = "<p>No applications found yet.</p>";
+      container.innerHTML = "<p>No active records found in the pipeline.</p>";
       return;
     }
     
@@ -471,9 +541,12 @@ async function loadDashboardData() {
     apps.forEach(app => {
       const card = document.createElement("div");
       card.className = "internship-card";
+      
+      // Dynamic status coloring logic
       const statusColor = app.status === 'Pending' ? '#b45309' : (app.status === 'Accepted' ? '#15803d' : '#b91c1c');
       
       if (role === "sme") {
+        // Prepare student object for detailed modal inspection
         const studentData = JSON.stringify({
           first: app.first, last: app.last, email: app.email,
           uni: app.university, major: app.major, year: app.graduation_year, skills: app.skills
@@ -508,18 +581,18 @@ async function loadDashboardData() {
       container.appendChild(card);
     });
   } catch (err) {
-    container.innerHTML = "<p>Error loading applications.</p>";
+    container.innerHTML = "<p>Error loading pipeline data.</p>";
   }
 }
 
-// Modal functions for Candidate Profile
+// Subroutines for Candidate Inspection UI
 function viewCandidateProfile(student) {
   document.getElementById("modal-cand-name").textContent = student.first + " " + student.last;
   document.getElementById("modal-cand-email").textContent = student.email;
-  document.getElementById("modal-cand-uni").textContent = student.uni || "Not provided";
-  document.getElementById("modal-cand-major").textContent = student.major || "Not provided";
-  document.getElementById("modal-cand-year").textContent = student.year || "Not provided";
-  document.getElementById("modal-cand-skills").textContent = student.skills || "Not provided";
+  document.getElementById("modal-cand-uni").textContent = student.uni || "Data not provided";
+  document.getElementById("modal-cand-major").textContent = student.major || "Data not provided";
+  document.getElementById("modal-cand-year").textContent = student.year || "Data not provided";
+  document.getElementById("modal-cand-skills").textContent = student.skills || "Data not provided";
   document.getElementById("candidate-modal").style.display = "flex";
 }
 
@@ -527,6 +600,10 @@ function closeCandidateModal() {
   document.getElementById("candidate-modal").style.display = "none";
 }
 
+/**
+ * Data Visualization Component (Doughnut Chart)
+ * Aggregates application statuses and renders via Chart.js
+ */
 let applicationsChartInstance = null;
 function renderApplicationsChart(apps) {
   const canvas = document.getElementById("applications-chart");
@@ -541,6 +618,7 @@ function renderApplicationsChart(apps) {
 
   const data = [counts.Pending, counts.Accepted, counts.Rejected];
 
+  // Destroy previous instance to prevent memory leaks and visual artifacts
   if (applicationsChartInstance) {
     applicationsChartInstance.destroy();
     applicationsChartInstance = null;
@@ -567,9 +645,12 @@ function renderApplicationsChart(apps) {
   });
 }
 
+/**
+ * Updates application status (e.g., Accepting or Rejecting a candidate)
+ */
 async function updateAppStatus(appId, newStatus) {
   try {
-    const res = await fetch("/api/applications", {
+    const res = await fetch(`${API_BASE_URL}/api/applications`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ app_id: appId, status: newStatus })
@@ -577,14 +658,15 @@ async function updateAppStatus(appId, newStatus) {
     const data = await res.json();
     showToast(data.message);
     if (data.status === "success") loadDashboardData(); 
-  } catch(err) { showToast("Failed to update status."); }
+  } catch(err) { showToast("Failed to mutate status on server."); }
 }
 
 document.addEventListener("DOMContentLoaded", loadDashboardData);
 
-/* =========================
-   SME LIVE APPLICATIONS CHART
-========================= */
+/**
+ * Live Metrics Module (Time-Series Analytics)
+ * Polls the backend every 5 seconds to provide real-time application tracking.
+ */
 let smeLiveAppsChartInstance = null;
 let smeLiveAppsIntervalId = null;
 
@@ -595,7 +677,7 @@ async function loadSmeLiveApplicationsChartOnce() {
   if (!canvas || typeof Chart === "undefined" || !userId || role !== "sme") return;
 
   try {
-    const res = await fetch(`/api/sme_metrics/applications_timeseries?user_id=${userId}`);
+    const res = await fetch(`${API_BASE_URL}/api/sme_metrics/applications_timeseries?user_id=${userId}`);
     const data = await res.json();
     if (!data || data.status !== "success") return;
 
@@ -605,7 +687,7 @@ async function loadSmeLiveApplicationsChartOnce() {
         data: {
           labels: data.labels || [],
           datasets: [{
-            label: "Applications", data: data.counts || [],
+            label: "Applications Volume", data: data.counts || [],
             borderColor: "#2563eb", backgroundColor: "rgba(37, 99, 235, 0.12)",
             tension: 0.25, fill: true, pointRadius: 3, pointHoverRadius: 5
           }]
@@ -620,6 +702,7 @@ async function loadSmeLiveApplicationsChartOnce() {
         }
       });
     } else {
+      // Update data mutably to preserve chart performance
       smeLiveAppsChartInstance.data.labels = data.labels || [];
       smeLiveAppsChartInstance.data.datasets[0].data = data.counts || [];
       smeLiveAppsChartInstance.update();
@@ -630,15 +713,19 @@ async function loadSmeLiveApplicationsChartOnce() {
 function startSmeLiveApplicationsChart() {
   const canvas = document.getElementById("applications-live-chart");
   if (!canvas) return;
+  
   loadSmeLiveApplicationsChartOnce();
+  
+  // Establish polling interval
   if (smeLiveAppsIntervalId) clearInterval(smeLiveAppsIntervalId);
   smeLiveAppsIntervalId = setInterval(loadSmeLiveApplicationsChartOnce, 5000);
 }
 document.addEventListener("DOMContentLoaded", startSmeLiveApplicationsChart);
 
-/* =========================
-   SKILL PROFILE LOGIC
-========================= */
+/**
+ * User Profile Management
+ * Controls the read/write state of the profile form and executes API updates.
+ */
 function toggleProfileEdit(isEditing) {
   const fields = ["prof-uni", "prof-major", "prof-year", "prof-skills"];
   fields.forEach(id => {
@@ -670,7 +757,7 @@ async function loadProfile() {
   if (!uniInput) return;
   
   try {
-    const res = await fetch(`/api/profile?user_id=${userId}`);
+    const res = await fetch(`${API_BASE_URL}/api/profile?user_id=${userId}`);
     const data = await res.json();
     if (data && (data.university || data.major || data.skills)) {
       document.getElementById("prof-uni").value = data.university || "";
@@ -681,15 +768,15 @@ async function loadProfile() {
     } else {
       toggleProfileEdit(true);
     }
-  } catch(err) { console.error("Error loading profile"); }
+  } catch(err) { console.error("Data retrieval error during profile load"); }
 }
 
 async function updateProfile() {
   const userId = localStorage.getItem("userId");
-  if (!userId) return showToast("Please log in first.");
+  if (!userId) return showToast("Session expired. Please re-authenticate.");
   
   try {
-    const res = await fetch("/api/profile", {
+    const res = await fetch(`${API_BASE_URL}/api/profile`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ 
@@ -703,33 +790,38 @@ async function updateProfile() {
     const data = await res.json();
     showToast(data.message);
     if (data.status === "success") toggleProfileEdit(false);
-  } catch(err) { showToast("Failed to update profile."); }
+  } catch(err) { showToast("Network error. Profile update failed."); }
 }
 document.addEventListener("DOMContentLoaded", loadProfile);
 
-/* =========================
-   SKILL-BASED MATCHING
-========================= */
+/**
+ * Recommendation Engine Interface
+ * Requests the backend to run a keyword-intersection analysis comparing 
+ * the active user's skills against available internship descriptions.
+ */
 async function matchInternships() {
   const userId = localStorage.getItem("userId");
   const container = document.getElementById("api-jobs-container");
   if (!userId || !container) return;
   
-  container.innerHTML = "<p>Analyzing your skills and finding matches...</p>";
+  container.innerHTML = "<p>Analyzing skill compatibility...</p>";
   try {
-    const res = await fetch(`/api/match?user_id=${userId}`);
+    const res = await fetch(`${API_BASE_URL}/api/match?user_id=${userId}`);
     const data = await res.json();
+    
+    // Guard clause for missing profile data
     if (data.status === "error") {
       container.innerHTML = `<p style="color: #b91c1c;">${data.message}</p>`;
       return;
     }
     
-    container.innerHTML = `<h3>Your Top Matches</h3><button class="btn" style="margin-bottom: 20px;" onclick="fetchJobs()">Show All Jobs</button>`;
+    container.innerHTML = `<h3>Algorithm Matches</h3><button class="btn" style="margin-bottom: 20px;" onclick="fetchJobs()">Reset Feed</button>`;
     if (data.matches.length === 0) {
-      container.innerHTML += "<p>No perfect matches found yet. Try adding more skills to your profile or check back later!</p>";
+      container.innerHTML += "<p>No threshold matches identified. Consider expanding your technical skill profile.</p>";
       return;
     }
     
+    // Render sorted matches prioritizing higher algorithmic scores
     data.matches.forEach(job => {
       const card = document.createElement("div");
       card.className = "internship-card";
@@ -738,7 +830,7 @@ async function matchInternships() {
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <h3 style="margin: 0;">${job.title}</h3>
           <span class="btn" style="color: #ffffff; cursor: default; pointer-events: none; padding: 8px 15px; font-size: 13px;">
-            Matched ${job.match_score} Skill(s)
+            Match Score: ${job.match_score}
           </span>
         </div>
         <p><strong>Company:</strong> ${job.company_name}</p>
@@ -748,26 +840,22 @@ async function matchInternships() {
       `;
       container.appendChild(card);
     });
-  } catch (err) { container.innerHTML = "<p>Error running matching algorithm.</p>"; }
+  } catch (err) { container.innerHTML = "<p>Connection error communicating with matching engine.</p>"; }
 }
 
-/* =========================
-   AUTO-SELECT REGISTRATION ROLE
-========================= */
+/**
+ * Client-Side Router Helper
+ * Parses URL query parameters to auto-select user roles during registration.
+ */
 document.addEventListener("DOMContentLoaded", () => {
-  // Check if we are on the registration page by looking for the role dropdown
   const roleSelect = document.getElementById("register-role");
   
   if (roleSelect) {
-    // Read the URL to see if a role was passed (e.g., ?role=sme)
     const urlParams = new URLSearchParams(window.location.search);
     const prefillRole = urlParams.get("role");
     
     if (prefillRole === "student" || prefillRole === "sme") {
       roleSelect.value = prefillRole;
-      
-      // Trigger a 'change' event just in case you have other code 
-      // that hides/shows the "Company Name" box when SME is selected
       roleSelect.dispatchEvent(new Event("change"));
     }
   }

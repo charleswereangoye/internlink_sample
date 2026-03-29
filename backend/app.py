@@ -1,19 +1,23 @@
 import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 from datetime import date, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
 
-# Load variables from .env file
+# Initialize environment variables
 basedir = os.path.abspath(os.path.dirname(__file__))
 load_dotenv(os.path.join(basedir, '.env'))
 
+# Initialize Flask application and enable Cross-Origin Resource Sharing
 app = Flask(__name__)
+CORS(app)
 
 # --- DATABASE WRAPPER ---
-# This wrapper lets psycopg2 act exactly like your old sqlite3 code!
+# Provides a standardized interface for executing psycopg2 queries 
+# to maintain backward compatibility with previous architecture.
 class DBWrapper:
     def __init__(self, conn):
         self.conn = conn
@@ -32,13 +36,12 @@ class DBWrapper:
 def get_db():
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
-        raise ValueError("ERROR: DATABASE_URL is missing from your .env file!")
+        raise ValueError("Configuration Error: DATABASE_URL is missing from the environment.")
     
     conn = psycopg2.connect(db_url, cursor_factory=RealDictCursor)
     return DBWrapper(conn)
 
 # --- CLOUD DATABASE SETUP ROUTE ---
-# Visit http://127.0.0.1:5000/init-db ONE TIME to build your tables in Aiven
 @app.route("/init-db")
 def init_db():
     conn = get_db()
@@ -81,28 +84,11 @@ def init_db():
         );
         """)
         conn.commit()
-        return "Cloud Database tables created successfully! You are ready to go."
+        return "Database schema initialized successfully."
     except Exception as e:
-        return f"Error creating tables: {e}"
+        return f"Schema initialization failed: {e}"
     finally:
         conn.close()
-
-# --- HTML PAGE ROUTES ---
-@app.route("/")
-def home():
-    return render_template("index.html")
-
-@app.route("/internships")
-def internships():
-    return render_template("listing.html")
-
-@app.route("/dashboard")
-def dashboard():
-    return render_template("dashboard.html")
-
-@app.route("/sme_dashboard")
-def sme_dashboard():
-    return render_template("sme_dashboard.html")
 
 # --- INTERNSHIP API ROUTES ---
 @app.route("/api/internships", methods=["GET", "POST", "DELETE", "PUT"])
@@ -117,7 +103,7 @@ def api_internships():
                 (data["sme_id"], data["title"], data["description"], data["location"], data["start_date"], data["end_date"])
             )
             conn.commit()
-            return jsonify({"status": "success", "message": "Internship published!"})
+            return jsonify({"status": "success", "message": "Internship published successfully."})
         except Exception as e:
             try:
                 conn.execute(
@@ -125,9 +111,9 @@ def api_internships():
                     (data["sme_id"], data["title"], data["description"], data["location"], data["start_date"], data["end_date"])
                 )
                 conn.commit()
-                return jsonify({"status": "success", "message": "Internship published!"})
+                return jsonify({"status": "success", "message": "Internship published successfully."})
             except Exception as inner_e:
-                return jsonify({"status": "error", "message": "Database error"})
+                return jsonify({"status": "error", "message": "Database transaction error."})
         finally:
             conn.close()
             
@@ -140,9 +126,9 @@ def api_internships():
                 (data["title"], data["description"], data["location"], data["start_date"], data["end_date"], internship_id, data["sme_id"])
             )
             conn.commit()
-            return jsonify({"status": "success", "message": "Internship updated successfully!"})
+            return jsonify({"status": "success", "message": "Internship record updated."})
         except Exception as e:
-            return jsonify({"status": "error", "message": "Failed to update internship."})
+            return jsonify({"status": "error", "message": "Failed to update record."})
         finally:
             conn.close()
             
@@ -151,17 +137,18 @@ def api_internships():
         internship_id = data.get("internship_id")
         if not internship_id:
             conn.close()
-            return jsonify({"status": "error", "message": "Internship ID is missing."}), 400
+            return jsonify({"status": "error", "message": "Missing resource identifier."}), 400
         try:
             conn.execute("UPDATE internships SET is_active = 0 WHERE id = %s", (internship_id,))
             conn.commit()
-            return jsonify({"status": "success", "message": "Internship closed successfully!"})
+            return jsonify({"status": "success", "message": "Internship closed successfully."})
         except Exception as e:
             return jsonify({"status": "error", "message": "Failed to close internship."})
         finally:
             conn.close()
             
-    else: # GET request
+    else:
+        # GET request handling
         jobs = conn.execute("""
             SELECT i.*, u.company_name 
             FROM internships i 
@@ -182,16 +169,16 @@ def api_applications():
         existing = conn.execute("SELECT * FROM applications WHERE student_id=%s AND internship_id=%s", 
                                (data["student_id"], data["internship_id"])).fetchone()
         if existing:
-            return jsonify({"status": "error", "message": "You already applied to this internship."})
+            return jsonify({"status": "error", "message": "Application already exists for this candidate."})
         try:
             conn.execute(
                 "INSERT INTO applications (student_id, internship_id) VALUES (%s, %s)",
                 (data["student_id"], data["internship_id"])
             )
             conn.commit()
-            return jsonify({"status": "success", "message": "Application submitted successfully!"})
+            return jsonify({"status": "success", "message": "Application submitted."})
         except Exception:
-            return jsonify({"status": "error", "message": "Failed to submit application."})
+            return jsonify({"status": "error", "message": "Transaction failed."})
         finally:
             conn.close()
             
@@ -227,18 +214,17 @@ def api_applications():
         conn.execute("UPDATE applications SET status = %s WHERE id = %s", (data["status"], data["app_id"]))
         conn.commit()
         conn.close()
-        return jsonify({"status": "success", "message": f"Application marked as {data['status']}!"})
+        return jsonify({"status": "success", "message": f"Candidate marked as {data['status']}."})
 
 # --- SME LIVE METRICS API ---
 @app.route("/api/sme_metrics/applications_timeseries", methods=["GET"])
 def sme_applications_timeseries():
     sme_id = request.args.get("user_id")
     if not sme_id:
-        return jsonify({"status": "error", "message": "user_id required"}), 400
+        return jsonify({"status": "error", "message": "Identifier required."}), 400
 
     conn = get_db()
     try:
-        # Postgres uses a slightly different date logic than SQLite
         rows = conn.execute(
             """
             SELECT TO_CHAR(COALESCE(a.application_date, CURRENT_TIMESTAMP), 'YYYY-MM-DD') AS day, COUNT(*) AS cnt
@@ -283,9 +269,9 @@ def api_profile():
                 (data.get("university"), data.get("major"), data.get("graduation_year"), data.get("skills"), data.get("user_id"))
             )
             conn.commit()
-            return jsonify({"status": "success", "message": "Skill Profile updated!"})
+            return jsonify({"status": "success", "message": "Profile updated."})
         except Exception as e:
-            return jsonify({"status": "error", "message": "Failed to update profile."})
+            return jsonify({"status": "error", "message": "Profile update failed."})
         finally:
             conn.close()
 
@@ -294,13 +280,13 @@ def api_profile():
 def match_internships():
     user_id = request.args.get("user_id")
     if not user_id:
-        return jsonify({"status": "error", "message": "User ID required"})
+        return jsonify({"status": "error", "message": "Identifier required."})
 
     conn = get_db()
     student = conn.execute("SELECT skills FROM users WHERE id=%s", (user_id,)).fetchone()
     if not student or not student["skills"]:
         conn.close()
-        return jsonify({"status": "error", "message": "No skills found. Please update your profile first!"})
+        return jsonify({"status": "error", "message": "Profile lacks skill data. Please update profile."})
 
     raw_skills = student["skills"].split(",")
     skills = [s.strip().lower() for s in raw_skills if s.strip()]
@@ -329,14 +315,11 @@ def match_internships():
     return jsonify({"status": "success", "matches": matched_jobs})
 
 # --- AUTHENTICATION ROUTES ---
-@app.route("/register", methods=["GET", "POST"])
+@app.route("/register", methods=["POST"])
 def register():
-    if request.method == "GET":
-        return render_template("register.html")
-        
     data = request.json
     if not data or not all(k in data for k in ("first", "last", "email", "password", "role")):
-        return jsonify({"status": "error", "message": "Missing data"}), 400
+        return jsonify({"status": "error", "message": "Incomplete payload."}), 400
 
     hashed_password = generate_password_hash(data["password"])
     company_name = data.get("companyName", "") 
@@ -348,20 +331,17 @@ def register():
             (data["first"], data["last"], data["email"], hashed_password, data["role"], company_name)
         )
         conn.commit()
-        return jsonify({"status": "success", "message": "User registered successfully!"})
-    except psycopg2.IntegrityError: # Changed from sqlite3 to psycopg2
-        return jsonify({"status": "error", "message": "Email already registered."})
+        return jsonify({"status": "success", "message": "Registration successful."})
+    except psycopg2.IntegrityError:
+        return jsonify({"status": "error", "message": "Email is already provisioned."})
     finally:
         conn.close()
 
-@app.route("/login", methods=["GET", "POST"])
+@app.route("/login", methods=["POST"])
 def login():
-    if request.method == "GET":
-        return render_template("login.html")
-
     data = request.json
     if not data or "email" not in data or "password" not in data:
-        return jsonify({"status": "error", "message": "Missing credentials"}), 400
+        return jsonify({"status": "error", "message": "Incomplete credentials."}), 400
 
     conn = get_db()
     user = conn.execute("SELECT * FROM users WHERE email=%s", (data["email"],)).fetchone()
@@ -370,7 +350,7 @@ def login():
     if user and check_password_hash(user["password"], data["password"]):
         return jsonify({"status": "success", "role": user["role"], "user_id": user["id"]})
     else:
-        return jsonify({"status": "error", "message": "Invalid email or password"})
+        return jsonify({"status": "error", "message": "Authentication failed."})
 
 if __name__ == "__main__":
     app.run(debug=True)

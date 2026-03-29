@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>InternLink – Find the Right Internship in Kigali</title>
+  
+  <link rel="stylesheet" href="css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <nav>
+    <div id="nav-logo" class="brand" style="cursor:pointer;">InternLink</div>
+    <div class="nav-links">
+        <span id="nav-home-wrapper"><a href="index.html" id="nav-home">Home</a></span>
+        <a href="dashboard.html" id="nav-dash" style="display:none;">Dashboard</a>
+        <a href="listing.html">Internships</a>
+        <a href="login.html" id="nav-login">Login</a>
+        <a href="register.html" id="nav-register">Sign Up</a>
+        <a onclick="logout()" id="nav-logout" style="display:none; cursor:pointer;">Logout</a>
+        <button id="theme-toggle" class="btn-nav theme-toggle" type="button" onclick="toggleTheme()" aria-label="Toggle light/dark theme">Theme</button>
+    </div>
+  </nav>
+
+  <div id="toast" class="toast"></div>
+
+  <main>
+    <section class="hero">
+      <h1>Find the Right <em>Internship</em></h1>
+      <p>InternLink connects ambitious students with innovative companies across Kigali and beyond through skill-based matching.</p>
+      
+      <div class="cta-container">
+        <a href="register.html?role=student" class="btn">Find an Internship</a>
+        <a href="register.html?role=sme" class="btn btn-outline">Post a Role</a>
+      </div>
+    </section>
+
+    <section class="page active" style="padding-top: 0; background: transparent;">
+      <h2 class="section-title-center">How InternLink Works</h2>
+      
+      <div class="features-grid">
+        <div class="dashboard-card feature-card">
+          <div class="feature-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+          </div>
+          <h4>Create Profile</h4>
+          <p>Students list technical skills; SMEs define project requirements.</p>
+        </div>
+
+        <div class="dashboard-card feature-card">
+          <div class="feature-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path></svg>
+          </div>
+          <h4>Smart Match</h4>
+          <p>Our algorithm bypasses long resumes to find the perfect technical fit instantly.</p>
+        </div>
+
+        <div class="dashboard-card feature-card">
+          <div class="feature-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+          </div>
+          <h4>Direct Connect</h4>
+          <p>Interview candidates and start your internship journey with confidence.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer style="border-top: 1px solid var(--border); padding: 60px 24px 20px; text-align: center; margin-top: 20px;">
+    <h3 style="color: var(--text); font-family: 'Syne', sans-serif; margin-top: 0; margin-bottom: 15px;">InternLink</h3>
+    <p style="color: var(--muted); font-size: 0.95rem; margin-bottom: 30px; max-width: 400px; margin-left: auto; margin-right: auto;">
+      Bridging the gap between Kigali's top student talent and innovative SMEs through skill-based matching.
+    </p>
+    
+    <div style="display: flex; justify-content: center; gap: 24px; margin-bottom: 40px; flex-wrap: wrap;">
+      <a href="#" style="color: var(--muted); font-size: 0.9rem;">Privacy Policy</a>
+      <a href="#" style="color: var(--muted); font-size: 0.9rem;">Terms of Service</a>
+      <a href="#" style="color: var(--muted); font-size: 0.9rem;">Contact Support</a>
+    </div>
+    
+    <p style="color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--border); padding-top: 20px; margin: 0;">
+      &copy; 2026 InternLink. Built with <span style="color: var(--accent);">♥</span> by Charlie Black.
+    </p>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  
+  <script src="js/script.js"></script>
+</body>
+</html>

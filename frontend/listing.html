@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>InternLink – Available Internships</title>
+  
+  <link rel="stylesheet" href="css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <nav>
+    <div id="nav-logo" class="brand" style="cursor:pointer;">InternLink</div>
+    <div class="nav-links">
+        <span id="nav-home-wrapper"><a href="index.html" id="nav-home">Home</a></span>
+        <a href="dashboard.html" id="nav-dash" style="display:none;">Dashboard</a>
+        <a href="listing.html">Internships</a>
+        <a href="login.html" id="nav-login">Login</a>
+        <a href="register.html" id="nav-register">Sign Up</a>
+        <a onclick="logout()" id="nav-logout" style="display:none; cursor:pointer;">Logout</a>
+        <button id="theme-toggle" class="btn-nav theme-toggle" type="button" onclick="toggleTheme()" aria-label="Toggle light/dark theme">Theme</button>
+    </div>
+  </nav>
+
+  <div id="toast" class="toast"></div>
+
+  <main class="page active">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+      <div>
+        <h2>Available Internships</h2>
+        <p>Browse live internships from our local SMEs and global partners.</p>
+      </div>
+      
+      <button id="match-me-btn" class="btn" style="display: none; margin-bottom: 20px;" onclick="matchInternships()">
+        Match Me!
+      </button>
+    </div>
+
+    <div id="api-jobs-container" class="internship-list">
+      <p>Loading live jobs...</p>
+    </div>
+  </main>
+
+  <footer style="border-top: 1px solid var(--border); padding: 60px 24px 20px; text-align: center; margin-top: 20px;">
+    <h3 style="color: var(--text); font-family: 'Syne', sans-serif; margin-top: 0; margin-bottom: 15px;">InternLink</h3>
+    <p style="color: var(--muted); font-size: 0.95rem; margin-bottom: 30px; max-width: 400px; margin-left: auto; margin-right: auto;">
+      Bridging the gap between Kigali's top student talent and innovative SMEs through skill-based matching.
+    </p>
+    
+    <div style="display: flex; justify-content: center; gap: 24px; margin-bottom: 40px; flex-wrap: wrap;">
+      <a href="#" style="color: var(--muted); font-size: 0.9rem;">Privacy Policy</a>
+      <a href="#" style="color: var(--muted); font-size: 0.9rem;">Terms of Service</a>
+      <a href="#" style="color: var(--muted); font-size: 0.9rem;">Contact Support</a>
+    </div>
+    
+    <p style="color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--border); padding-top: 20px; margin: 0;">
+      &copy; 2026 InternLink. Built with <span style="color: var(--accent);">♥</span> by Charlie Black.
+    </p>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  
+  <script src="js/script.js"></script>
+</body>
+</html>
